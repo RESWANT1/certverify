@@ -1,0 +1,95 @@
+name: ci-cd
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  AWS_REGION: ap-south-1
+  REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [certificate-service, verification-service]
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python -m pytest
+
+  build-scan-push:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: certificate-service
+            path: services/certificate-service
+          - name: verification-service
+            path: services/verification-service
+          - name: frontend
+            path: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - name: Build image
+        run: docker build -t $REGISTRY/certverify-${{ matrix.name }}:${{ github.sha }} ${{ matrix.path }}
+      - name: Trivy scan (fails on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/certverify-${{ matrix.name }}:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+      - name: Push image
+        run: docker push $REGISTRY/certverify-${{ matrix.name }}:${{ github.sha }}
+
+  deploy:
+    needs: build-scan-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Copy Helm chart to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: helm/certverify
+          target: /home/ubuntu/chart
+          strip_components: 1
+      - name: Deploy with Helm
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+            REG=${{ env.REGISTRY }}
+            kubectl create secret docker-registry ecr-pull \
+              --docker-server=$REG --docker-username=AWS \
+              --docker-password="$(aws ecr get-login-password --region ${{ env.AWS_REGION }})" \
+              --dry-run=client -o yaml | kubectl apply -f -
+            helm upgrade --install certverify /home/ubuntu/chart/certverify \
+              --set-string registry=$REG \
+              --set-string tag=${{ github.sha }} \
+              --set-string databaseUrl="${{ secrets.DATABASE_URL }}" \
+              --set-string jwtSecret="${{ secrets.JWT_SECRET }}" \
+              --set-string adminPassword="${{ secrets.ADMIN_PASSWORD }}"
+            kubectl rollout status deployment/frontend --timeout=120s

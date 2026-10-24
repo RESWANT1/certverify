@@ -1,0 +1,50 @@
+{{- range .Values.services }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .name }}
+    spec:
+      imagePullSecrets:
+        - name: {{ $.Values.imagePullSecret }}
+      containers:
+        - name: {{ .name }}
+          image: {{ $.Values.registry }}/certverify-{{ .name }}:{{ $.Values.tag }}
+          ports:
+            - containerPort: {{ .port }}
+          {{- if .backend }}
+          envFrom:
+            - secretRef:
+                name: certverify-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .port }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .name }}
+spec:
+  {{- if .nodePort }}
+  type: NodePort
+  {{- end }}
+  selector:
+    app: {{ .name }}
+  ports:
+    - port: {{ .port }}
+      targetPort: {{ .port }}
+      {{- if .nodePort }}
+      nodePort: {{ .nodePort }}
+      {{- end }}
+{{- end }}

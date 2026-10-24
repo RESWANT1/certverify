@@ -15,8 +15,9 @@ __pycache__/
 .env
 *.pem
 *.key
-certverify
-certverify.pub
+/certverify
+/certverify.pub
+*.pub
 
 # Logs & OS files
 *.log

@@ -1,0 +1,17 @@
+registry: ""
+tag: latest
+imagePullSecret: ecr-pull
+databaseUrl: ""
+jwtSecret: ""
+adminUser: admin
+adminPassword: ""
+services:
+  - name: certificate-service
+    port: 8000
+    backend: true
+  - name: verification-service
+    port: 8000
+    backend: true
+  - name: frontend
+    port: 80
+    nodePort: 30080
