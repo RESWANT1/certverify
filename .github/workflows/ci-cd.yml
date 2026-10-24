@@ -50,7 +50,7 @@ jobs:
       - name: Build image
         run: docker build -t $REGISTRY/certverify-${{ matrix.name }}:${{ github.sha }} ${{ matrix.path }}
       - name: Trivy scan (fails on HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.28.0
         with:
           image-ref: ${{ env.REGISTRY }}/certverify-${{ matrix.name }}:${{ github.sha }}
           severity: CRITICAL,HIGH
