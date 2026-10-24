@@ -56,7 +56,6 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
-          trivyignores: .trivyignore
       - name: Push image
         run: docker push $REGISTRY/certverify-${{ matrix.name }}:${{ github.sha }}
 
