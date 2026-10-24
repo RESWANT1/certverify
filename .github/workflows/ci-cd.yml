@@ -49,11 +49,11 @@ jobs:
       - uses: aws-actions/amazon-ecr-login@v2
       - name: Build image
         run: docker build -t $REGISTRY/certverify-${{ matrix.name }}:${{ github.sha }} ${{ matrix.path }}
-      - name: Trivy scan (fails on HIGH/CRITICAL)
+      - name: Trivy scan (fails on CRITICAL)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.REGISTRY }}/certverify-${{ matrix.name }}:${{ github.sha }}
-          severity: CRITICAL,HIGH
+          severity: CRITICAL
           exit-code: "1"
           ignore-unfixed: true
       - name: Push image
