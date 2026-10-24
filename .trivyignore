@@ -1,0 +1,3 @@
+# CVE-2024-33663: python-jose algorithm confusion vulnerability when using OpenSSH ECDSA keys.
+# Justification: CertVerify exclusively uses symmetric HS256 JWT tokens with HMAC-SHA256, so this vulnerability is not exploitable.
+CVE-2024-33663
