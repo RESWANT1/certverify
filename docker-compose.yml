@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cert
+      POSTGRES_PASSWORD: cert
+      POSTGRES_DB: certdb
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cert -d certdb"]
+      interval: 5s
+      retries: 10
+
+  certificate-service:
+    build: ./services/certificate-service
+    environment:
+      DATABASE_URL: postgresql://cert:cert@db:5432/certdb
+      JWT_SECRET: dev-secret
+      ADMIN_PASSWORD: admin123
+    depends_on:
+      db:
+        condition: service_healthy
+
+  verification-service:
+    build: ./services/verification-service
+    environment:
+      DATABASE_URL: postgresql://cert:cert@db:5432/certdb
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - certificate-service
+      - verification-service
+
+volumes:
+  dbdata:

@@ -1,0 +1,24 @@
+# Dependencies & builds
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Terraform
+.terraform/
+*.tfstate*
+*.tfvars
+
+# Secrets & Keys
+.env
+*.pem
+*.key
+certverify
+certverify.pub
+
+# Logs & OS files
+*.log
+.DS_Store
+Thumbs.db
