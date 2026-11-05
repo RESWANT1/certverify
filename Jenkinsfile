@@ -17,7 +17,7 @@ pipeline {
                                 pip install --upgrade pip
                                 pip install "psycopg2-binary>=2.9.10"
                                 pip install -r requirements.txt
-                                pytest
+                                PYTHONPATH=. python3 -m pytest
                             '''
                         }
                     }
@@ -31,7 +31,7 @@ pipeline {
                                 pip install --upgrade pip
                                 pip install "psycopg2-binary>=2.9.10"
                                 pip install -r requirements.txt
-                                pytest
+                                PYTHONPATH=. python3 -m pytest
                             '''
                         }
                     }
