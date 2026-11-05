@@ -15,6 +15,7 @@ pipeline {
                                 python3 -m venv .venv
                                 . .venv/bin/activate
                                 pip install --upgrade pip
+                                pip install "psycopg2-binary>=2.9.10"
                                 pip install -r requirements.txt
                                 pytest
                             '''
@@ -28,6 +29,7 @@ pipeline {
                                 python3 -m venv .venv
                                 . .venv/bin/activate
                                 pip install --upgrade pip
+                                pip install "psycopg2-binary>=2.9.10"
                                 pip install -r requirements.txt
                                 pytest
                             '''

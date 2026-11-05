@@ -28,6 +28,72 @@ export default function App() {
     }
   }, []);
 
+  // Live Dual-Service Health Polling (Certificate Service & Verification Service)
+  const [systemHealth, setSystemHealth] = useState({
+    status: "checking", // 'operational' | 'degraded' | 'offline' | 'checking'
+    certServiceUp: false,
+    verifyServiceUp: false,
+    lastChecked: null,
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function checkServicesHealth() {
+      let certUp = false;
+      let verifyUp = false;
+
+      // 1. Check Certificate Service (/api/certs/health)
+      try {
+        const res = await fetch("/api/certs/health", { cache: "no-store" });
+        if (res.ok) {
+          certUp = true;
+        }
+      } catch (err) {
+        certUp = false;
+      }
+
+      // 2. Check Verification Service (/api/verify/healthcheck)
+      // Treating HTTP 200 or 404 as up, and 502/503/network error as down
+      try {
+        const res = await fetch("/api/verify/healthcheck", { cache: "no-store" });
+        if (res.status === 200 || res.status === 404) {
+          verifyUp = true;
+        } else {
+          verifyUp = false;
+        }
+      } catch (err) {
+        verifyUp = false;
+      }
+
+      if (!isMounted) return;
+
+      let overallStatus = "offline";
+      if (certUp && verifyUp) {
+        overallStatus = "operational";
+      } else if (certUp || verifyUp) {
+        overallStatus = "degraded";
+      } else {
+        overallStatus = "offline";
+      }
+
+      setSystemHealth({
+        status: overallStatus,
+        certServiceUp: certUp,
+        verifyServiceUp: verifyUp,
+        lastChecked: new Date(),
+      });
+    }
+
+    checkServicesHealth();
+    const intervalId = setInterval(checkServicesHealth, 30000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, []);
+
   // Authentication
   async function doLogin(e) {
     if (e) e.preventDefault();
@@ -43,8 +109,10 @@ export default function App() {
         const data = await res.json();
         setToken(data.access_token);
         setLoginError("");
-      } else {
+      } else if (res.status === 401) {
         setLoginError("Invalid admin credentials. (Default: admin / admin123)");
+      } else {
+        setLoginError(`Backend service unreachable (HTTP ${res.status}). Verify that the backend is running.`);
       }
     } catch (err) {
       setLoginError("Network connection error to Certificate Service.");
@@ -173,12 +241,9 @@ export default function App() {
                 <span className="font-heading" style={{ fontSize: "1.35rem", fontWeight: 800, background: "linear-gradient(90deg, #ffffff, #c7d2fe)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
                   CertVerify
                 </span>
-                <span className="badge badge-primary" style={{ fontSize: "0.65rem", padding: "2px 8px" }}>
-                  v2.0 AWS
-                </span>
               </div>
               <div style={{ fontSize: "0.72rem", color: "var(--text-dim)" }}>
-                Cloud-Native Digital Credentials Platform
+                Digital Certificate Verification
               </div>
             </div>
           </div>
@@ -249,10 +314,84 @@ export default function App() {
 
           {/* Infrastructure Health Status */}
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(16, 185, 129, 0.1)", border: "1px solid rgba(16, 185, 129, 0.25)", padding: "4px 10px", borderRadius: 20 }}>
-              <span className="glow-dot" />
-              <span style={{ fontSize: "0.78rem", color: "#34d399", fontWeight: 600 }}>
-                AWS k3s: Online
+            <div
+              title={`Live system status: ${
+                systemHealth.status === "operational"
+                  ? "Certificate Service & Verification Service are operational"
+                  : systemHealth.status === "degraded"
+                  ? `Degraded: Cert Service ${systemHealth.certServiceUp ? "UP" : "DOWN"}, Verify Service ${systemHealth.verifyServiceUp ? "UP" : "DOWN"}`
+                  : "Backend services are currently unreachable"
+              }. Polled live every 30 seconds.`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "7px",
+                background:
+                  systemHealth.status === "operational"
+                    ? "rgba(16, 185, 129, 0.1)"
+                    : systemHealth.status === "degraded"
+                    ? "rgba(245, 158, 11, 0.1)"
+                    : systemHealth.status === "checking"
+                    ? "rgba(99, 102, 241, 0.1)"
+                    : "rgba(239, 68, 68, 0.1)",
+                border: `1px solid ${
+                  systemHealth.status === "operational"
+                    ? "rgba(16, 185, 129, 0.3)"
+                    : systemHealth.status === "degraded"
+                    ? "rgba(245, 158, 11, 0.35)"
+                    : systemHealth.status === "checking"
+                    ? "rgba(99, 102, 241, 0.3)"
+                    : "rgba(239, 68, 68, 0.35)"
+                }`,
+                padding: "5px 12px",
+                borderRadius: 20,
+                cursor: "help",
+                userSelect: "none",
+              }}
+            >
+              <span
+                className="glow-dot"
+                style={{
+                  backgroundColor:
+                    systemHealth.status === "operational"
+                      ? "#34d399"
+                      : systemHealth.status === "degraded"
+                      ? "#fbbf24"
+                      : systemHealth.status === "checking"
+                      ? "#818cf8"
+                      : "#f87171",
+                  boxShadow:
+                    systemHealth.status === "operational"
+                      ? "0 0 8px #34d399"
+                      : systemHealth.status === "degraded"
+                      ? "0 0 8px #fbbf24"
+                      : systemHealth.status === "checking"
+                      ? "0 0 8px #818cf8"
+                      : "0 0 8px #f87171",
+                }}
+              />
+              <span
+                style={{
+                  fontSize: "0.78rem",
+                  color:
+                    systemHealth.status === "operational"
+                      ? "#34d399"
+                      : systemHealth.status === "degraded"
+                      ? "#fbbf24"
+                      : systemHealth.status === "checking"
+                      ? "#c7d2fe"
+                      : "#f87171",
+                  fontWeight: 600,
+                  letterSpacing: "0.02em",
+                }}
+              >
+                {systemHealth.status === "operational"
+                  ? "Operational"
+                  : systemHealth.status === "degraded"
+                  ? "Degraded"
+                  : systemHealth.status === "checking"
+                  ? "Checking..."
+                  : "Offline"}
               </span>
             </div>
           </div>
@@ -266,35 +405,133 @@ export default function App() {
           <div className="animate-fade-in" style={{ maxWidth: 780, margin: "0 auto" }}>
             {/* Hero Header */}
             <div className="no-print" style={{ textAlign: "center", marginBottom: "2rem" }}>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", marginBottom: "0.75rem" }}>
-                <span className="badge badge-primary">Decentralized Trust</span>
-                <span className="badge badge-success">PostgreSQL RDS Verified</span>
-              </div>
               <h1 style={{ fontSize: "2.8rem", fontWeight: 800, marginBottom: "0.6rem", letterSpacing: "-0.03em" }}>
                 Instant Credential Verification
               </h1>
               <p style={{ color: "var(--text-muted)", fontSize: "1.05rem", maxWidth: 580, margin: "0 auto", lineHeight: 1.6 }}>
-                Securely validate certificates issued through our cloud-native microservice architecture hosted on AWS EC2 & RDS.
+                Check whether a certificate is genuine in seconds. Enter the certificate ID to see who it was issued to and whether it is still valid.
               </p>
             </div>
 
-            {/* Architecture Metrics Grid */}
-            <div className="stats-grid no-print">
-              <div className="stat-card">
-                <div className="stat-value">&lt; 15ms</div>
-                <div className="stat-label">Verification Latency</div>
+            {/* How It Works - 3 Step Guide */}
+            <div
+              className="no-print"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+                gap: "1rem",
+                marginBottom: "2rem",
+              }}
+            >
+              <div
+                className="glass-panel"
+                style={{
+                  padding: "1.1rem 1.25rem",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "12px",
+                }}
+              >
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    background: "rgba(99, 102, 241, 0.2)",
+                    border: "1px solid rgba(99, 102, 241, 0.4)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 700,
+                    color: "#c7d2fe",
+                    fontSize: "0.9rem",
+                    flexShrink: 0,
+                  }}
+                >
+                  1
+                </div>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#f8fafc", marginBottom: "3px" }}>
+                    Enter Certificate ID
+                  </div>
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", lineHeight: 1.4 }}>
+                    Input the unique identifier printed on the credential.
+                  </div>
+                </div>
               </div>
-              <div className="stat-card">
-                <div className="stat-value">SHA-256</div>
-                <div className="stat-label">Cryptographic Integrity</div>
+
+              <div
+                className="glass-panel"
+                style={{
+                  padding: "1.1rem 1.25rem",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "12px",
+                }}
+              >
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    background: "rgba(99, 102, 241, 0.2)",
+                    border: "1px solid rgba(99, 102, 241, 0.4)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 700,
+                    color: "#c7d2fe",
+                    fontSize: "0.9rem",
+                    flexShrink: 0,
+                  }}
+                >
+                  2
+                </div>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#f8fafc", marginBottom: "3px" }}>
+                    Record Lookup
+                  </div>
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", lineHeight: 1.4 }}>
+                    We check it against our records.
+                  </div>
+                </div>
               </div>
-              <div className="stat-card">
-                <div className="stat-value">Zero-Trust</div>
-                <div className="stat-label">JWT Authenticated</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-value">AWS RDS</div>
-                <div className="stat-label">PostgreSQL 16 Engine</div>
+
+              <div
+                className="glass-panel"
+                style={{
+                  padding: "1.1rem 1.25rem",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "12px",
+                }}
+              >
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    background: "rgba(16, 185, 129, 0.2)",
+                    border: "1px solid rgba(16, 185, 129, 0.4)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 700,
+                    color: "#6ee7b7",
+                    fontSize: "0.9rem",
+                    flexShrink: 0,
+                  }}
+                >
+                  3
+                </div>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#f8fafc", marginBottom: "3px" }}>
+                    Instant Result
+                  </div>
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", lineHeight: 1.4 }}>
+                    See whether it is valid, with the holder and course details.
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -311,10 +548,10 @@ export default function App() {
                   <input
                     type="text"
                     className="input-field"
-                    placeholder="Enter Certificate ID (e.g. CERT-7F3A91BC)"
+                    placeholder="Enter certificate ID (e.g. CERT-7F3A91BC)"
                     value={verifyId}
-                    onChange={(e) => setVerifyId(e.target.value)}
-                    style={{ fontSize: "1.05rem", textTransform: "uppercase", paddingLeft: "42px" }}
+                    onChange={(e) => setVerifyId(e.target.value.toUpperCase())}
+                    style={{ fontSize: "1.05rem", paddingLeft: "42px" }}
                   />
                   <span style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", fontSize: "1.1rem", opacity: 0.6 }}>
                     🔍
@@ -397,13 +634,13 @@ export default function App() {
                               Official Verified Credential
                             </div>
                             <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
-                              Issued via CertVerify AWS Cloud Architecture
+                              Official Digital Record
                             </div>
                           </div>
                         </div>
 
                         <span className="badge badge-success" style={{ fontSize: "0.82rem", padding: "5px 12px" }}>
-                          ✓ Cryptographically Verified
+                          ✓ Valid certificate
                         </span>
                       </div>
 
@@ -473,7 +710,7 @@ export default function App() {
                             Verification Authority
                           </div>
                           <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "#e2e8f0", marginTop: "3px" }}>
-                            CertVerify Cloud-Native CA
+                            CertVerify Registry
                           </div>
                         </div>
 
@@ -596,7 +833,7 @@ export default function App() {
                       Admin Authentication
                     </h2>
                     <p style={{ color: "var(--text-muted)", fontSize: "0.88rem" }}>
-                      Sign in to the certificate issuance service with JWT authentication.
+                      Sign in with administrator credentials to issue and manage certificates.
                     </p>
                   </div>
 
@@ -651,7 +888,7 @@ export default function App() {
                       className="btn btn-primary"
                       style={{ marginTop: "0.5rem" }}
                     >
-                      {loginLoading ? "Authenticating with JWT..." : "Sign In to Admin Studio"}
+                      {loginLoading ? "Signing in..." : "Sign In to Admin Studio"}
                     </button>
                   </form>
 
@@ -674,11 +911,11 @@ export default function App() {
                   <div>
                     <h2 style={{ fontSize: "1.9rem", fontWeight: 800 }}>Certificate Issuance Studio</h2>
                     <p style={{ color: "var(--text-muted)", fontSize: "0.92rem" }}>
-                      Issue verified digital credentials stored securely in AWS PostgreSQL RDS.
+                      Issue and manage digital certificates.
                     </p>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <span className="badge badge-success">JWT Session Active</span>
+                    <span className="badge badge-success">Admin Session Active</span>
                     <button onClick={doLogout} className="btn btn-secondary" style={{ padding: "8px 16px", fontSize: "0.85rem" }}>
                       Sign Out
                     </button>
@@ -727,7 +964,7 @@ export default function App() {
                         className="btn btn-primary"
                         style={{ marginTop: "0.5rem" }}
                       >
-                        {issueLoading ? "Committing to RDS Database..." : "Issue Official Certificate"}
+                        {issueLoading ? "Issuing Certificate..." : "Issue Official Certificate"}
                       </button>
                     </form>
 
@@ -789,7 +1026,7 @@ export default function App() {
                           </span>
                         </div>
                         <div style={{ marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px dashed rgba(245, 158, 11, 0.2)", fontSize: "0.75rem", color: "var(--text-dim)" }}>
-                          Live Preview • AWS Deployment Authenticated
+                          Draft Certificate • Live Preview
                         </div>
                       </div>
                     </div>
@@ -898,7 +1135,7 @@ export default function App() {
                   AWS RDS PostgreSQL 16
                 </h3>
                 <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.5 }}>
-                  Managed relational database in AWS ap-south-1 (Mumbai) with automated backups and security group isolation.
+                  Managed relational database in AWS ap-south-1 (Mumbai); private database reachable only from the Kubernetes server via a security group.
                 </p>
               </div>
 
@@ -918,7 +1155,7 @@ export default function App() {
                   DevSecOps & Trivy
                 </h3>
                 <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.5 }}>
-                  GitHub Actions automated pipeline with pytest unit tests, Trivy vulnerability gating, and zero-downtime rolling Helm upgrades.
+                  GitHub Actions automated pipeline with pytest unit tests, Trivy vulnerability gating, and automated rolling Helm upgrades with health checks.
                 </p>
               </div>
 
@@ -928,7 +1165,7 @@ export default function App() {
                   Amazon ECR & S3
                 </h3>
                 <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.5 }}>
-                  Private AWS Elastic Container Registry repos for each containerized image and S3 buckets for object storage.
+                  Private AWS Elastic Container Registry repos for each containerized image; S3 bucket provisioned for certificate files.
                 </p>
               </div>
             </div>
@@ -958,7 +1195,7 @@ export default function App() {
             <span className="badge badge-primary">React + Vite</span>
           </div>
           <p style={{ fontSize: "0.8rem", color: "var(--text-dim)" }}>
-            CertVerify • Cloud-Native DevOps Engineering Platform • Automated CI/CD by GitHub Actions
+            CertVerify • Digital Certificate Verification Platform • Automated CI/CD by GitHub Actions
           </p>
         </div>
       </footer>

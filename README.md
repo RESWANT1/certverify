@@ -4,6 +4,32 @@
 
 CertVerify is a full-stack web application where an admin issues digital certificates and anyone can verify them by ID. The application is small on purpose. The focus of the project is the DevOps system around it: every `git push` is automatically tested, scanned, containerized, deployed to Kubernetes on AWS, and monitored.
 
+> 🎓 **Project Review & Interview Guide:**  
+> Preparing for a project review or interview? Read the complete presentation handbook: [`DEVOPS_README.md`](file:///c:/Users/reswant/devops-project/DEVOPS_README.md). It contains simple explanations for all DevOps tools, end-to-end architecture diagrams, and answers to top reviewer questions.
+
+---
+
+## ⚡ Quick Start (One-Click Launch)
+
+Whenever you open this repository, run the automated launcher:
+
+```powershell
+# In PowerShell or VS Code Terminal:
+.\run-website.ps1
+
+# Or simply double-click in Windows Explorer:
+run-website.bat
+```
+
+**What it does automatically:**
+- Verifies that Docker Engine / Docker Desktop is running (starts it if needed).
+- Ensures the CertVerify microservices (`frontend`, `certificate-service`, `verification-service`, `db`) are active.
+- Opens `http://localhost:8085` directly in your default browser.
+- Displays credentials (`admin` / `admin123`), sample certificate ID (`CERT-F5BD51F1`), and real-time health status.
+
+> 🤖 **Need AI Recommendations?**  
+> Check [`AI_RECOMMENDATIONS_PROMPT.md`](file:///c:/Users/reswant/devops-project/AI_RECOMMENDATIONS_PROMPT.md). Copy its contents directly into any AI (ChatGPT, Claude, Gemini) to get high-impact recommendations on features, architecture, security hardening, and resume bullet points.
+
 ---
 
 ## 1. Features
